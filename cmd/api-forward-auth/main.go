@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"api-forward-auth/internal/config"
-	"api-forward-auth/internal/logger"
-	"api-forward-auth/internal/provider"
-	"api-forward-auth/internal/server"
+	"github.com/blesswinsamuel/api-forward-auth/internal/config"
+	"github.com/blesswinsamuel/api-forward-auth/internal/logger"
+	"github.com/blesswinsamuel/api-forward-auth/internal/provider"
+	"github.com/blesswinsamuel/api-forward-auth/internal/server"
 
 	"github.com/rs/zerolog"
 )

@@ -1,11 +1,12 @@
 package server
 
 import (
-	"api-forward-auth/internal/provider"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/blesswinsamuel/api-forward-auth/internal/provider"
 
 	"github.com/rs/zerolog"
 )

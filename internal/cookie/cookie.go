@@ -1,7 +1,6 @@
 package cookie
 
 import (
-	"api-forward-auth/internal/config"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/blesswinsamuel/api-forward-auth/internal/config"
 )
 
 type CookieFactory struct {

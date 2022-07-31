@@ -13,13 +13,13 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"api-forward-auth/internal/cookie"
-	"api-forward-auth/internal/provider"
+	"github.com/blesswinsamuel/api-forward-auth/internal/cookie"
+	"github.com/blesswinsamuel/api-forward-auth/internal/provider"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 
-	"api-forward-auth/internal/config"
+	"github.com/blesswinsamuel/api-forward-auth/internal/config"
 )
 
 //go:embed html/*.html

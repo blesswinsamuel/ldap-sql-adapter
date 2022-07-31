@@ -1,4 +1,4 @@
-module api-forward-auth
+module github.com/blesswinsamuel/api-forward-auth
 
 go 1.18
 

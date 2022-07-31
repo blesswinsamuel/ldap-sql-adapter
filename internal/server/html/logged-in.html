@@ -1,0 +1,20 @@
+{{template "layout.html" .}}
+
+<!-- title -->
+
+{{define "title"}}Logged In{{end}}
+
+<!-- content -->
+
+{{define "content"}}
+<div id="app" class="login-container">
+  <img src="{{ .LogoURL }}" alt="" class="sfa-logo" />
+  <div class="card login-card">
+    <div class="card-body">
+      <h4 class="card-title">Hi {{ .Name }}</h4>
+      <div>You are logged in</div>
+      <a href="/logout">Logout</a>
+    </div>
+  </div>
+</div>
+{{end}}

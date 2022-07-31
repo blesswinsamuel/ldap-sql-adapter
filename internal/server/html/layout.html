@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>{{block "title" .}}{{end}}</title>
+
+    <link
+      type="text/css"
+      rel="stylesheet"
+      href="//unpkg.com/bootstrap@5.1.0/dist/css/bootstrap.min.css"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #f7f9fb;
+      }
+
+      .login-container {
+        padding: 0 1em 0;
+      }
+
+      .login-card {
+        margin: 0 auto;
+        padding: 10px;
+        max-width: 380px;
+        transition: opacity 0.3s ease;
+      }
+
+      .login-card .card-title {
+        margin-bottom: 20px;
+      }
+
+      .login-card.form-submitting {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .sfa-logo {
+        width: 100px;
+        height: 100px;
+        margin: 80px auto 40px;
+        display: block;
+        border-radius: 33%;
+        padding: 10px;
+        background-color: white;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      @media screen and (max-width: 320px) {
+        .login-card {
+          padding: 0;
+        }
+
+        .login-card .card-title {
+          margin-bottom: 15px;
+        }
+      }
+    </style>
+
+    <script
+      src="//cdn.jsdelivr.net/gh/alpinejs/alpine@v2.8.2/dist/alpine.min.js"
+      defer
+    ></script>
+  </head>
+  <body>
+    {{block "content" .}}{{end}}
+  </body>
+</html>

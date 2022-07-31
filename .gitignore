@@ -1,0 +1,9 @@
+/node_modules
+/dist
+/packages
+*.iml
+*.log
+.DS_Store
+/.idea
+/tmp
+/config.yaml

@@ -1,0 +1,19 @@
+{{template "layout.html" .}}
+
+<!-- title -->
+
+{{define "title"}}{{ .Title }}{{end}}
+
+<!-- content -->
+
+{{define "content"}}
+<div id="app" class="login-container">
+  <img src="{{ .LogoURL }}" alt="" class="sfa-logo" />
+  <div class="card login-card">
+    <div class="card-body">
+      <h4 class="card-title">{{.Title}}</h4>
+      <div>{{.Message}}</div>
+    </div>
+  </div>
+</div>
+{{end}}

@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"api-forward-auth/internal/config"
 	"api-forward-auth/internal/logger"
@@ -35,10 +38,16 @@ func main() {
 	handler := server.NewServer(config, provider, log)
 
 	// Start
-	log.Debug().Interface("config", config).Msg("Starting with config")
-	log.Info().Msgf("Listening on %d", config.Port)
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Error().Err(err).Msg("Failed to start server")
-	}
+	go func() {
+		log.Debug().Interface("config", config).Msg("Starting with config")
+		log.Info().Msgf("Listening on %d", config.Port)
+		addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
+		if err := http.ListenAndServe(addr, handler); err != nil {
+			log.Panic().Err(err).Msg("Failed to start server")
+		}
+	}()
+
+	sigC := make(chan os.Signal, 1)
+	signal.Notify(sigC, syscall.SIGTERM, syscall.SIGINT)
+	<-sigC
 }

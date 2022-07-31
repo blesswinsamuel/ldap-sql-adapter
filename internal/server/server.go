@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"api-forward-auth/internal/cookie"
 	"api-forward-auth/internal/provider"
 
@@ -86,7 +88,9 @@ func NewServer(cfg *config.Config, authProvider provider.Provider, logger zerolo
 }
 
 func (s *Server) buildRoutes() {
+	s.router.Use(prometheusMiddleware)
 	s.router.Use(s.loggerMiddleware)
+
 	s.router.Methods(http.MethodGet).Path("/").Handler(s.HandlerLoginUIGET())
 	s.router.Methods(http.MethodGet).Path("/reset-password").Handler(s.HandlerResetPasswordUIGET())
 
@@ -96,6 +100,8 @@ func (s *Server) buildRoutes() {
 	s.router.Methods(http.MethodPost).Path("/api/reset-password").Handler(s.HandlerResetPasswordPOST())
 
 	s.router.Methods(http.MethodGet).Path("/logout").Handler(s.HandlerLogoutGet())
+
+	s.router.Handle("/metrics", promhttp.Handler())
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

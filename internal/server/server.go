@@ -370,7 +370,7 @@ func (s *Server) loggerMiddleware(h http.Handler) http.Handler {
 		}).Logger()
 
 		// Log request
-		s.logger.Debug().Interface("cookies", r.Cookies()).Msg("Received request")
+		logger.Debug().Interface("cookies", r.Cookies()).Msg("Received request")
 
 		r = r.WithContext(context.WithValue(r.Context(), loggerCtx{}, logger))
 

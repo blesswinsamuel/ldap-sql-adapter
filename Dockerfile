@@ -1,4 +1,4 @@
-FROM golang:1.18-alpine AS builder
+FROM golang:1.20-alpine AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY cmd ./cmd
 
 RUN CGO_ENABLED=0 go build -o /app/api-forward-auth ./cmd/api-forward-auth
 
-FROM alpine:3.12
+FROM alpine:3.17
 
 WORKDIR /app
 COPY --from=builder /app/api-forward-auth ./

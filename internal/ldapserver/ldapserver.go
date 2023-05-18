@@ -20,9 +20,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// // https://github.com/glauth/glauth/blob/0e7769ff841e096dbf0cb67768cbd2ab7142f6fb/v2/pkg/handler/ldap.go#L62
-// // https://github.com/authelia/authelia/blob/ae8d25f4be3b4ff880dd847b9fa40e1c56d0ddc8/internal/authentication/ldap_user_provider.go#L240
-// // https://github.com/jimlambrt/ldap/blob/2ad3888755a37c65bd1fea35b347e8e7bf414f6e/testdirectory/directory.go#L129
+// https://github.com/glauth/glauth/blob/0e7769ff841e096dbf0cb67768cbd2ab7142f6fb/v2/pkg/handler/ldap.go#L62
+// https://github.com/authelia/authelia/blob/ae8d25f4be3b4ff880dd847b9fa40e1c56d0ddc8/internal/authentication/ldap_user_provider.go#L240
+// https://github.com/jimlambrt/ldap/blob/2ad3888755a37c65bd1fea35b347e8e7bf414f6e/testdirectory/directory.go#L129
+// https://github.com/vjeantet/ldapserver/blob/master/examples/complex/main.go
+// https://github.com/jiegec/daccountd/blob/427ad2b20c866be9a84db3c0aec6a8823b026ef6/ldap.go#L36
 
 type Config struct {
 	BindUsername string
@@ -58,10 +60,11 @@ func NewLdapServer(provider provider.Provider, config Config) *LdapServer {
 	routes.Search(s.handleSearchGroups).
 		BaseDn("ou=groups," + config.BaseDN).
 		Scope(ldap.SearchRequestHomeSubtree)
-	routes.NotFound(s.handleNotFound)
 
 	routes.Extended(s.passwordModifyHandler).
 		RequestName(ldap.NoticeOfPasswordModify).Label("Ext - PasswordModify")
+
+	routes.NotFound(s.handleNotFound)
 
 	s.srv.Handle(routes)
 	return s
@@ -101,10 +104,15 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 		password := string(r.AuthenticationSimple())
 		logger = logger.With().Str("username", username).Str("password", password).Logger()
 		dn := s.parseDN(username)
-		if username == s.config.BindUsername && password == s.config.BindPassword {
-			// s.authenticatedConnections[r.ConnectionID()] = struct{}{} // mark connection as authenticated
-			logger.Debug().Msg("bind success")
-			w.Write(ldap.NewBindResponse(ldap.LDAPResultSuccess))
+		logger.Debug().Msgf("simple bind request")
+		if dn["ou"] == nil {
+			if username == s.config.BindUsername && password == s.config.BindPassword {
+				// s.authenticatedConnections[r.ConnectionID()] = struct{}{} // mark connection as authenticated
+				logger.Debug().Msg("bind success")
+				w.Write(ldap.NewBindResponse(ldap.LDAPResultSuccess))
+				return
+			}
+			errorResponse(ctx, w, ldap.NewBindResponse(ldap.LDAPResultUnwillingToPerform), nil, "ou is missing in dn")
 			return
 		}
 
@@ -139,7 +147,6 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 }
 
 func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
-	res := ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess)
 	r := m.GetSearchRequest()
 	logger := log.With().Str("method", "handleSearchUsers").
 		Int("id", m.MessageID().Int()).
@@ -169,6 +176,11 @@ func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
 	}
 	user, err := s.provider.FindByUID(ctx, uid)
 	if err != nil {
+		if err.Error() == "user not found" {
+			logger.Warn().Msg("user not found")
+			w.Write(ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess))
+			return
+		}
 		errorResponse(ctx, w, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), err, "unable to find user by uid")
 		return
 	}
@@ -191,7 +203,7 @@ func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
 	// 	// 	"description": {"friend of Rivest, Shamir and Adleman"},
 	// 	// }),
 	// )
-	w.Write(res)
+	w.Write(ldap.NewSearchResultDoneResponse(ldap.LDAPResultSuccess))
 }
 
 func (s *LdapServer) handleSearchGroups(w ldap.ResponseWriter, m *ldap.Message) {
@@ -332,7 +344,7 @@ func (s *LdapServer) parseDN(dnStr string) map[string][]string {
 	res := map[string][]string{}
 	for i, part := range dnParts {
 		dnParts[i] = strings.TrimSpace(part)
-		pargs := strings.Split(part, "=")
+		pargs := strings.SplitN(part, "=", 2)
 		if len(pargs) != 2 {
 			continue
 		}
@@ -346,12 +358,12 @@ func errorResponse(ctx context.Context, w ldap.ResponseWriter, response message.
 	log.Ctx(ctx).Error().Err(err).Msgf(format, v...)
 	switch res := response.(type) {
 	case message.ExtendedResponse:
-		// res.SetDiagnosticMessage(fmt.Sprintf(format, v...))
+		res.SetDiagnosticMessage(fmt.Sprintf(format, v...))
 		w.Write(res)
 	case message.SearchResultDone:
 		w.Write(res)
 	case message.BindResponse:
-		// res.SetDiagnosticMessage(fmt.Sprintf(format, v...))
+		res.SetDiagnosticMessage(fmt.Sprintf(format, v...))
 		w.Write(res)
 	}
 }

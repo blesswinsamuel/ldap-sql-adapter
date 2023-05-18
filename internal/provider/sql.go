@@ -41,9 +41,13 @@ func (p *SQLProvider) FindByUID(ctx context.Context, uid string) (User, error) {
 }
 
 func (p *SQLProvider) FindGroups(ctx context.Context, uid string) ([]Group, error) {
-	rows, err := p.db.NamedQueryContext(ctx, `SELECT role.name as name FROM identity.user_role
-			JOIN identity.role ON user_role.role_id = role.id
-			WHERE user_role.user_id = (SELECT id FROM identity.user WHERE username = :uid)`, map[string]any{"uid": uid})
+	// rows, err := p.db.NamedQueryContext(ctx, `SELECT role.name as name FROM identity.user_role
+	// 		JOIN identity.role ON user_role.role_id = role.id
+	// 		WHERE user_role.user_id = (SELECT id FROM identity.user WHERE username = :uid)`, map[string]any{"uid": uid})
+	rows, err := p.db.NamedQueryContext(ctx, `
+		SELECT permission.name as name FROM identity.role_permission
+			JOIN identity.permission ON role_permission.permission_id = permission.id
+			WHERE role_id IN (SELECT role_id FROM identity.user_role WHERE user_id = (SELECT id FROM identity.user WHERE username = :uid))`, map[string]any{"uid": uid})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get groups: %w", err)
 	}

@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "ldap-test"
+version = "0.1.0"
+description = ""
+authors = ["Blesswin Samuel <blesswinsamuel@gmail.com>"]
+readme = "README.md"
+packages = [{include = "ldap_test"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+python-ldap = "^3.4.3"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.22.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

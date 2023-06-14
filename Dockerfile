@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.20-alpine AS builder
 
 WORKDIR /app
 
@@ -7,7 +7,9 @@ RUN go mod download
 COPY internal ./internal
 COPY cmd ./cmd
 
-RUN CGO_ENABLED=0 go build -o /app/ldap-sql-adapter ./cmd/ldap-sql-adapter
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /app/ldap-sql-adapter ./cmd/ldap-sql-adapter
 
 FROM alpine:3.17
 

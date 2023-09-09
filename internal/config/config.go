@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
+	"github.com/blesswinsamuel/ldap-sql-proxy/internal/provider"
 	"github.com/jessevdk/go-flags"
 	"github.com/joho/godotenv"
 )
@@ -19,11 +20,11 @@ type Config struct {
 	HttpPort int                  `long:"http-port" env:"HTTP_PORT" default:"4181" description:"Metrics port to listen on"`
 	LdapPort int                  `long:"ldap-port" env:"LDAP_PORT" default:"10389" description:"Ldap port to listen on"`
 
-	DatabaseURL string `long:"database-url" env:"DATABASE_URL"`
-
 	BindUsername string `long:"bind-username" env:"BIND_USERNAME" default:"admin"`
 	BindPassword string `long:"bind-password" env:"BIND_PASSWORD" default:"admin"`
 	BaseDN       string `long:"base-dn" env:"BASE_DN" default:"dc=example,dc=com"`
+
+	provider.SQLProviderConfig
 
 	// Filled during transformations
 	Secret []byte `json:"-"`

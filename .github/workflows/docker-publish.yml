@@ -15,6 +15,5 @@ jobs:
     steps:
       - uses: blesswinsamuel/github-actions/docker-build-and-push@main
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           slack-webhook: ${{ secrets.SLACK_WEBHOOK }}
           docker-build-platforms: linux/amd64,linux/arm64

@@ -125,6 +125,7 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 				errorResponse(ctx, w, ldap.NewBindResponse(ldap.LDAPResultInvalidCredentials), err, "unable to find user: %s", uid)
 				return
 			}
+			// fmt.Println(password, user["password"])
 			err = bcrypt.CompareHashAndPassword([]byte(user["password"].(string)), []byte(password))
 			if err != nil {
 				errorResponse(ctx, w, ldap.NewBindResponse(ldap.LDAPResultInvalidCredentials), err, "invalid password for user: %s", uid)

@@ -8,23 +8,32 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type SQLProvider struct {
-	db *sqlx.DB
+type SQLProviderConfig struct {
+	DatabaseURL string `long:"database-url" env:"DATABASE_URL"`
+
+	SQLGetUserQuery        string `long:"sql-get-user-query" env:"SQL_GET_USER_QUERY" default:""`
+	SQLGetUserGroupsQuery  string `long:"sql-get-user-groups-query" env:"SQL_GET_USER_GROUPS_QUERY" default:""`
+	SQLUpdatePasswordQuery string `long:"sql-update-password-query" env:"SQL_UPDATE_PASSWORD_QUERY" default:""`
 }
 
-func NewSQLProvider(databaseURL string) (*SQLProvider, error) {
-	db, err := sqlx.Open("postgres", databaseURL)
+type SQLProvider struct {
+	db     *sqlx.DB
+	config SQLProviderConfig
+}
+
+func NewSQLProvider(config SQLProviderConfig) (*SQLProvider, error) {
+	db, err := sqlx.Open("postgres", config.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to open database: %w", err)
 	}
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("unable to ping database: %w", err)
 	}
-	return &SQLProvider{db: db}, nil
+	return &SQLProvider{db: db, config: config}, nil
 }
 
 func (p *SQLProvider) FindByUID(ctx context.Context, uid string) (User, error) {
-	rows, err := p.db.NamedQueryContext(ctx, `SELECT username as uid, password, email, name as displayname FROM identity.user WHERE username = :uid`, map[string]any{"uid": uid})
+	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserQuery, map[string]any{"uid": uid})
 	// givenname, sn, displayname, mail, uid, password
 	if err != nil {
 		return nil, fmt.Errorf("unable to get user: %w", err)
@@ -41,13 +50,7 @@ func (p *SQLProvider) FindByUID(ctx context.Context, uid string) (User, error) {
 }
 
 func (p *SQLProvider) FindGroups(ctx context.Context, uid string) ([]Group, error) {
-	// rows, err := p.db.NamedQueryContext(ctx, `SELECT role.name as name FROM identity.user_role
-	// 		JOIN identity.role ON user_role.role_id = role.id
-	// 		WHERE user_role.user_id = (SELECT id FROM identity.user WHERE username = :uid)`, map[string]any{"uid": uid})
-	rows, err := p.db.NamedQueryContext(ctx, `
-		SELECT permission.name as name FROM identity.role_permission
-			JOIN identity.permission ON role_permission.permission_id = permission.id
-			WHERE role_id IN (SELECT role_id FROM identity.user_role WHERE user_id = (SELECT id FROM identity.user WHERE username = :uid))`, map[string]any{"uid": uid})
+	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserGroupsQuery, map[string]any{"uid": uid})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get groups: %w", err)
 	}
@@ -64,7 +67,7 @@ func (p *SQLProvider) FindGroups(ctx context.Context, uid string) ([]Group, erro
 }
 
 func (p *SQLProvider) UpdateUserPassword(ctx context.Context, uid string, password string) error {
-	res, err := p.db.NamedExecContext(ctx, `UPDATE identity.user SET password = :password WHERE username = :uid`, map[string]any{"uid": uid, "password": password})
+	res, err := p.db.NamedExecContext(ctx, p.config.SQLUpdatePasswordQuery, map[string]any{"uid": uid, "password": password})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}

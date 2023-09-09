@@ -28,7 +28,7 @@ func main() {
 	// Perform config validation
 	config.Validate()
 
-	provider, err := provider.NewSQLProvider(config.DatabaseURL)
+	provider, err := provider.NewSQLProvider(config.SQLProviderConfig)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init SQL provider")
 	}

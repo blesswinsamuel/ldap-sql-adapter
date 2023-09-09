@@ -120,13 +120,14 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 		switch organizationUnit {
 		case "people":
 			uid := dn["uid"][0]
-			user, err := s.provider.FindByUID(ctx, uid)
+			userPasswordHashed, err := s.provider.FindUserPasswordByUsername(ctx, uid)
 			if err != nil {
 				errorResponse(ctx, w, ldap.NewBindResponse(ldap.LDAPResultInvalidCredentials), err, "unable to find user: %s", uid)
 				return
 			}
+			logger.Info().Interface("user", userPasswordHashed).Msg("found user during bind")
 			// fmt.Println(password, user["password"])
-			err = bcrypt.CompareHashAndPassword([]byte(user["password"].(string)), []byte(password))
+			err = bcrypt.CompareHashAndPassword(userPasswordHashed, []byte(password))
 			if err != nil {
 				errorResponse(ctx, w, ldap.NewBindResponse(ldap.LDAPResultInvalidCredentials), err, "invalid password for user: %s", uid)
 				return
@@ -147,6 +148,27 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 	}
 }
 
+func parseSearchFilter(filter message.Filter) map[string]string {
+	condition := map[string]string{}
+	switch filter := filter.(type) {
+	case message.FilterAnd:
+		for _, f := range filter {
+			switch f := f.(type) {
+			case message.FilterEqualityMatch:
+				condition[string(f.AttributeDesc())] = string(f.AssertionValue())
+			case message.FilterOr:
+				for _, f := range f {
+					switch f := f.(type) {
+					case message.FilterEqualityMatch:
+						condition[string(f.AttributeDesc())] = string(f.AssertionValue())
+					}
+				}
+			}
+		}
+	}
+	return condition
+}
+
 func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
 	r := m.GetSearchRequest()
 	logger := log.With().Str("method", "handleSearchUsers").
@@ -156,26 +178,18 @@ func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
 	ctx := logger.WithContext(context.Background())
 	logger.Debug().Msg("search users request")
 
-	condition := map[string]string{}
-	switch filter := r.Filter().(type) {
-	case message.FilterAnd:
-		for _, f := range filter {
-			switch f := f.(type) {
-			case message.FilterEqualityMatch:
-				condition[string(f.AttributeDesc())] = string(f.AssertionValue())
-			}
-		}
-	}
+	condition := parseSearchFilter(r.Filter())
 
-	logger.Info().Interface("condition", condition).Msg("condition")
+	logger.Info().Interface("condition", condition).Msg("search users condition")
 
 	uid := condition["uid"]
+	email := condition["email"]
 
-	if uid == "" {
-		errorResponse(ctx, w, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), nil, "uid is empty")
+	if uid == "" && email == "" {
+		errorResponse(ctx, w, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), nil, "uid and email is empty")
 		return
 	}
-	user, err := s.provider.FindByUID(ctx, uid)
+	user, err := s.provider.FindUserByUsernameOrEmail(ctx, uid, email)
 	if err != nil {
 		if err.Error() == "user not found" {
 			logger.Warn().Msg("user not found")
@@ -185,7 +199,8 @@ func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
 		errorResponse(ctx, w, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), err, "unable to find user by uid")
 		return
 	}
-	entry := ldap.NewSearchResultEntry(fmt.Sprintf("uid=%s,ou=%s,%s", uid, "people", s.config.BaseDN))
+	logger.Info().Interface("user", user).Msg("found user during search user")
+	entry := ldap.NewSearchResultEntry(fmt.Sprintf("uid=%s,ou=%s,%s", user["uid"], "people", s.config.BaseDN))
 	for k, v := range user {
 		if k == "password" {
 			continue
@@ -216,18 +231,9 @@ func (s *LdapServer) handleSearchGroups(w ldap.ResponseWriter, m *ldap.Message) 
 	ctx := logger.WithContext(context.Background())
 	logger.Debug().Msg("search groups request")
 
-	condition := map[string]string{}
-	switch filter := r.Filter().(type) {
-	case message.FilterAnd:
-		for _, f := range filter {
-			switch f := f.(type) {
-			case message.FilterEqualityMatch:
-				condition[string(f.AttributeDesc())] = string(f.AssertionValue())
-			}
-		}
-	}
+	condition := parseSearchFilter(r.Filter())
 
-	logger.Info().Interface("condition", condition).Msg("condition")
+	logger.Info().Interface("condition", condition).Msg("search groups condition")
 
 	memberDN := condition["member"]
 
@@ -236,12 +242,12 @@ func (s *LdapServer) handleSearchGroups(w ldap.ResponseWriter, m *ldap.Message) 
 		return
 	}
 	memberDNParsed := s.parseDN(memberDN)
-	groups, err := s.provider.FindGroups(ctx, memberDNParsed["uid"][0])
+	groups, err := s.provider.FindUserGroups(ctx, memberDNParsed["uid"][0])
 	if err != nil {
 		errorResponse(ctx, w, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), err, "unable to find group by uid")
 		return
 	}
-	log.Info().Interface("groups", groups).Msg("found groups")
+	log.Info().Interface("groups", groups).Msg("found user groups during search groups")
 	for _, group := range groups {
 		groupName := group["name"].(string)
 		entry := ldap.NewSearchResultEntry(fmt.Sprintf("cn=%s,ou=%s,%s", groupName, "groups", s.config.BaseDN))

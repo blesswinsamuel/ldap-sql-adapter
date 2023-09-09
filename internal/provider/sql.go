@@ -8,12 +8,17 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var (
+	ErrUserNotFound = fmt.Errorf("user not found")
+)
+
 type SQLProviderConfig struct {
 	DatabaseURL string `long:"database-url" env:"DATABASE_URL"`
 
-	SQLGetUserQuery        string `long:"sql-get-user-query" env:"SQL_GET_USER_QUERY" default:""`
-	SQLGetUserGroupsQuery  string `long:"sql-get-user-groups-query" env:"SQL_GET_USER_GROUPS_QUERY" default:""`
-	SQLUpdatePasswordQuery string `long:"sql-update-password-query" env:"SQL_UPDATE_PASSWORD_QUERY" default:""`
+	SQLGetUserPasswordByUsernameQuery string `long:"sql-get-user-password-by-username-query" env:"SQL_GET_USER_PASSWORD_BY_USERNAME_QUERY" default:""`
+	SQLGetUserByUsernameOrEmailQuery  string `long:"sql-get-user-by-username-or-email-query" env:"SQL_GET_USER_BY_USERNAME_OR_EMAIL_QUERY" default:""`
+	SQLGetUserGroupsQuery             string `long:"sql-get-user-groups-query" env:"SQL_GET_USER_GROUPS_QUERY" default:""`
+	SQLUpdatePasswordQuery            string `long:"sql-update-password-query" env:"SQL_UPDATE_PASSWORD_QUERY" default:""`
 }
 
 type SQLProvider struct {
@@ -29,11 +34,33 @@ func NewSQLProvider(config SQLProviderConfig) (*SQLProvider, error) {
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("unable to ping database: %w", err)
 	}
+	if config.SQLGetUserPasswordByUsernameQuery == "" || config.SQLGetUserByUsernameOrEmailQuery == "" || config.SQLGetUserGroupsQuery == "" || config.SQLUpdatePasswordQuery == "" {
+		return nil, fmt.Errorf("sql queries not provided")
+	}
 	return &SQLProvider{db: db, config: config}, nil
 }
 
-func (p *SQLProvider) FindByUID(ctx context.Context, uid string) (User, error) {
-	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserQuery, map[string]any{"uid": uid})
+func (p *SQLProvider) FindUserPasswordByUsername(ctx context.Context, uid string) ([]byte, error) {
+	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserPasswordByUsernameQuery, map[string]any{"uid": uid})
+	// password
+	if err != nil {
+		return nil, fmt.Errorf("unable to get user: %w", err)
+	}
+	defer rows.Close()
+	users, err := rowsToMap(rows)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get columns: %w", err)
+	}
+	if len(users) != 1 {
+		return nil, ErrUserNotFound
+	}
+	user := users[0]
+	password := user["password"].(string)
+	return []byte(password), nil
+}
+
+func (p *SQLProvider) FindUserByUsernameOrEmail(ctx context.Context, uid string, email string) (User, error) {
+	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserByUsernameOrEmailQuery, map[string]any{"uid": uid, "email": email})
 	// givenname, sn, displayname, mail, uid, password
 	if err != nil {
 		return nil, fmt.Errorf("unable to get user: %w", err)
@@ -43,13 +70,13 @@ func (p *SQLProvider) FindByUID(ctx context.Context, uid string) (User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get columns: %w", err)
 	}
-	if len(users) == 0 {
-		return nil, fmt.Errorf("user not found")
+	if len(users) != 1 {
+		return nil, ErrUserNotFound
 	}
 	return users[0], nil
 }
 
-func (p *SQLProvider) FindGroups(ctx context.Context, uid string) ([]Group, error) {
+func (p *SQLProvider) FindUserGroups(ctx context.Context, uid string) ([]Group, error) {
 	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserGroupsQuery, map[string]any{"uid": uid})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get groups: %w", err)

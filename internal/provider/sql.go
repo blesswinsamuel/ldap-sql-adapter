@@ -57,6 +57,11 @@ func NewSQLProvider(config SQLProviderConfig) (*SQLProvider, error) {
 	return &SQLProvider{db: db, config: config}, nil
 }
 
+func (p *SQLProvider) Ping(ctx context.Context) (err error) {
+	defer logMetric("Ping")(err)
+	return p.db.PingContext(ctx)
+}
+
 func (p *SQLProvider) FindUserPasswordByUsername(ctx context.Context, uid string) (passwordBytes []byte, err error) {
 	defer logMetric("FindUserPasswordByUsername")(err)
 	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserPasswordByUsernameQuery, map[string]any{"uid": uid})

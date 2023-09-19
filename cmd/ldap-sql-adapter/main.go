@@ -43,7 +43,7 @@ func main() {
 	defer ldapserver.Stop()
 
 	// Build handler
-	srv := server.NewServer(config, log)
+	srv := server.NewServer(config, log, provider)
 
 	// Start
 	go srv.Start()

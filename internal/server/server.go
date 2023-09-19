@@ -13,21 +13,24 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/blesswinsamuel/ldap-sql-proxy/internal/config"
+	"github.com/blesswinsamuel/ldap-sql-proxy/internal/provider"
 )
 
 // Server contains router and handler methods
 type Server struct {
-	router *mux.Router
-	logger zerolog.Logger
-	config *config.Config
+	router   *mux.Router
+	provider provider.Provider
+	logger   zerolog.Logger
+	config   *config.Config
 }
 
 // NewServer creates a new server object and builds router
-func NewServer(cfg *config.Config, logger zerolog.Logger) *Server {
+func NewServer(cfg *config.Config, logger zerolog.Logger, provider provider.Provider) *Server {
 	s := &Server{
-		router: mux.NewRouter(),
-		logger: logger,
-		config: cfg,
+		router:   mux.NewRouter(),
+		logger:   logger,
+		provider: provider,
+		config:   cfg,
 	}
 
 	s.buildRoutes()
@@ -69,6 +72,14 @@ func (s *Server) buildRoutes() {
 	s.router.Use(s.loggerMiddleware)
 
 	s.router.Handle("/metrics", promhttp.Handler())
+	s.router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		err := s.provider.Ping(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

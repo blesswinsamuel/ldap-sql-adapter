@@ -11,6 +11,7 @@ var (
 
 // Provider is used to authenticate users
 type Provider interface {
+	Ping(ctx context.Context) error
 	FindUserPasswordByUsername(ctx context.Context, username string) ([]byte, error)
 	FindUserByUsernameOrEmail(ctx context.Context, username string, email string) (User, error)
 	FindUserGroups(ctx context.Context, username string) ([]Group, error)

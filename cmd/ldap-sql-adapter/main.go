@@ -50,7 +50,7 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	log.Info().Msg("started")
+	log.Info().Msg("server started")
 	<-ctx.Done()
-	log.Info().Msg("stopping")
+	log.Info().Msg("server stopping")
 }

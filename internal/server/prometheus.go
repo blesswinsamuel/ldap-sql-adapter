@@ -12,7 +12,7 @@ import (
 
 var (
 	httpDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Name: "api_forward_auth_http_duration_seconds",
+		Name: "ldap_sql_adapter_http_duration_seconds",
 		Help: "Duration of HTTP requests.",
 	}, []string{"path", "status"})
 )

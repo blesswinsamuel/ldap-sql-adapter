@@ -3,13 +3,19 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
-	ErrUserNotFound = fmt.Errorf("user not found")
+	sqlQueryDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "ldap_sql_adapter_sql_query_duration_seconds",
+		Help: "Duration of SQL query requests.",
+	}, []string{"query_name", "status"})
 )
 
 type SQLProviderConfig struct {
@@ -26,6 +32,17 @@ type SQLProvider struct {
 	config SQLProviderConfig
 }
 
+func logMetric(queryName string) func(err error) {
+	startTime := time.Now()
+	return func(err error) {
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		sqlQueryDuration.WithLabelValues(queryName, status).Observe(time.Since(startTime).Seconds())
+	}
+}
+
 func NewSQLProvider(config SQLProviderConfig) (*SQLProvider, error) {
 	db, err := sqlx.Open("postgres", config.DatabaseURL)
 	if err != nil {
@@ -40,7 +57,8 @@ func NewSQLProvider(config SQLProviderConfig) (*SQLProvider, error) {
 	return &SQLProvider{db: db, config: config}, nil
 }
 
-func (p *SQLProvider) FindUserPasswordByUsername(ctx context.Context, uid string) ([]byte, error) {
+func (p *SQLProvider) FindUserPasswordByUsername(ctx context.Context, uid string) (passwordBytes []byte, err error) {
+	defer logMetric("FindUserPasswordByUsername")(err)
 	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserPasswordByUsernameQuery, map[string]any{"uid": uid})
 	// password
 	if err != nil {
@@ -59,9 +77,10 @@ func (p *SQLProvider) FindUserPasswordByUsername(ctx context.Context, uid string
 	return []byte(password), nil
 }
 
-func (p *SQLProvider) FindUserByUsernameOrEmail(ctx context.Context, uid string, email string) (User, error) {
+func (p *SQLProvider) FindUserByUsernameOrEmail(ctx context.Context, uid string, email string) (user User, err error) {
+	defer logMetric("FindUserByUsernameOrEmail")(err)
 	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserByUsernameOrEmailQuery, map[string]any{"uid": uid, "email": email})
-	// givenname, sn, displayname, mail, uid, password
+	// displayname, email, uid // givenname, sn
 	if err != nil {
 		return nil, fmt.Errorf("unable to get user: %w", err)
 	}
@@ -76,7 +95,8 @@ func (p *SQLProvider) FindUserByUsernameOrEmail(ctx context.Context, uid string,
 	return users[0], nil
 }
 
-func (p *SQLProvider) FindUserGroups(ctx context.Context, uid string) ([]Group, error) {
+func (p *SQLProvider) FindUserGroups(ctx context.Context, uid string) (groups []Group, err error) {
+	defer logMetric("FindUserGroups")(err)
 	rows, err := p.db.NamedQueryContext(ctx, p.config.SQLGetUserGroupsQuery, map[string]any{"uid": uid})
 	if err != nil {
 		return nil, fmt.Errorf("unable to get groups: %w", err)
@@ -86,14 +106,15 @@ func (p *SQLProvider) FindUserGroups(ctx context.Context, uid string) ([]Group, 
 	if err != nil {
 		return nil, fmt.Errorf("unable to get columns: %w", err)
 	}
-	groups := []Group{}
+	groups = []Group{}
 	for _, group := range groupRows {
 		groups = append(groups, Group(group))
 	}
 	return groups, nil
 }
 
-func (p *SQLProvider) UpdateUserPassword(ctx context.Context, uid string, password string) error {
+func (p *SQLProvider) UpdateUserPassword(ctx context.Context, uid string, password string) (err error) {
+	defer logMetric("UpdateUserPassword")(err)
 	res, err := p.db.NamedExecContext(ctx, p.config.SQLUpdatePasswordQuery, map[string]any{"uid": uid, "password": password})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)

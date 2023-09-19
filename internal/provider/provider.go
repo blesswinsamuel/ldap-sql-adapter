@@ -1,6 +1,13 @@
 package provider
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
+
+var (
+	ErrUserNotFound = fmt.Errorf("user not found")
+)
 
 // Provider is used to authenticate users
 type Provider interface {

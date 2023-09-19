@@ -5,7 +5,7 @@
 ###############################################################
 
 jwt_secret: a_very_important_secret
-default_redirection_url: http://auth.ldap-adapter-playground.localhost:4030
+default_redirection_url: https://auth.ldap-adapter-playground.localhost:4030
 
 server:
   host: 0.0.0.0

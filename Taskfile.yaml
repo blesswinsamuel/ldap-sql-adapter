@@ -23,6 +23,19 @@ tasks:
     status:
       - command -v authelia
 
+  install-authelia-latest:
+    # internal: true
+    dir: /tmp
+    cmds:
+      - defer: rm -rf /tmp/authelia
+      - git clone --branch master --depth 1 git@github.com:authelia/authelia.git # 3ff9d7a752556956b73985613011612eeee89cce
+      - cd authelia/web && pnpm install && pnpm build
+      - cd authelia && mkdir -p internal/server/public_html/api
+      - cd authelia && touch internal/server/public_html/{index.html,api/index.html,api/openapi.yml}
+      - cd authelia && go install github.com/authelia/authelia/v4/cmd/authelia
+    # status:
+    #   - command -v authelia
+
   create-authelia-assets:
     dir: ./test/authelia
     cmds:

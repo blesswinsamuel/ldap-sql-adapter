@@ -135,7 +135,7 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 		username := string(r.Name())
 		password := string(r.AuthenticationSimple())
 		// fmt.Println("username", username, "password", password)
-		dn := s.parseDN(username)
+		dn := parseDN(username)
 		if dn["ou"] == nil {
 			if username == s.config.BindUsername && password == s.config.BindPassword {
 				writeSuccessResponse(ctx, w, ins, ldap.NewBindResponse(ldap.LDAPResultSuccess))
@@ -175,27 +175,6 @@ func (s *LdapServer) handleBind(w ldap.ResponseWriter, m *ldap.Message) {
 		writeErrorResponse(ctx, w, ins, ldap.NewBindResponse(ldap.LDAPResultUnwillingToPerform), nil, "invalid-authentication-choice", "Authentication choice not supported")
 		return
 	}
-}
-
-func parseSearchFilter(filter message.Filter) map[string]string {
-	condition := map[string]string{}
-	switch filter := filter.(type) {
-	case message.FilterAnd:
-		for _, f := range filter {
-			switch f := f.(type) {
-			case message.FilterEqualityMatch:
-				condition[string(f.AttributeDesc())] = string(f.AssertionValue())
-			case message.FilterOr:
-				for _, f := range f {
-					switch f := f.(type) {
-					case message.FilterEqualityMatch:
-						condition[string(f.AttributeDesc())] = string(f.AssertionValue())
-					}
-				}
-			}
-		}
-	}
-	return condition
 }
 
 func (s *LdapServer) handleSearchUsers(w ldap.ResponseWriter, m *ldap.Message) {
@@ -262,7 +241,7 @@ func (s *LdapServer) handleSearchGroups(w ldap.ResponseWriter, m *ldap.Message) 
 		writeErrorResponse(ctx, w, ins, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), nil, "member-dn-empty", "member is empty")
 		return
 	}
-	memberDNParsed := s.parseDN(memberDN)
+	memberDNParsed := parseDN(memberDN)
 	groups, err := s.provider.FindUserGroups(ctx, memberDNParsed["uid"][0])
 	if err != nil {
 		writeErrorResponse(ctx, w, ins, ldap.NewSearchResultDoneResponse(ldap.LDAPResultNoSuchObject), err, "provider-error", "unable to find group by uid")
@@ -330,10 +309,10 @@ func (s *LdapServer) passwordModifyHandler(w ldap.ResponseWriter, m *ldap.Messag
 	}
 	dnStr := pkt.Children[0].Data.String()
 	newPassword := pkt.Children[1].Data.String()
-	log.Info().Str("dn", dnStr).Str("newPass", newPassword).Msg("password modify request")
+	logger.Debug().Str("dn", dnStr).Str("newPass", newPassword).Msg("password modify request")
 
-	dn := s.parseDN(dnStr)
-	if !reflect.DeepEqual(dn["dc"], s.parseDN(s.config.BaseDN)["dc"]) {
+	dn := parseDN(dnStr)
+	if !reflect.DeepEqual(dn["dc"], parseDN(s.config.BaseDN)["dc"]) {
 		writeErrorResponse(ctx, w, ins, ldap.NewExtendedResponse(ldap.LDAPResultInvalidDNSyntax), err, "invalid-dn", "invalid dn: %s", dn)
 		return
 	}
@@ -348,7 +327,7 @@ func (s *LdapServer) passwordModifyHandler(w ldap.ResponseWriter, m *ldap.Messag
 		writeErrorResponse(ctx, w, ins, ldap.NewExtendedResponse(ldap.LDAPResultOperationsError), err, "bcrypt-hash-error", "failed to generate bcrypt hash")
 		return
 	}
-	log.Info().Str("newPassword", string(newPassword)).Str("hashedPassword", string(hashedPassword)).Hex("newPasswordBytes", []byte(newPassword)).Msg("updating password")
+	logger.Debug().Str("newPassword", string(newPassword)).Str("hashedPassword", string(hashedPassword)).Hex("newPasswordBytes", []byte(newPassword)).Msg("updating password")
 	uid := dn["uid"][0]
 	err = s.provider.UpdateUserPassword(ctx, uid, string(hashedPassword))
 	if err != nil {
@@ -359,23 +338,6 @@ func (s *LdapServer) passwordModifyHandler(w ldap.ResponseWriter, m *ldap.Messag
 	logger.Debug().Msg("modify success")
 	res := ldap.NewExtendedResponse(ldap.LDAPResultSuccess)
 	writeSuccessResponse(ctx, w, ins, res)
-}
-
-func (s *LdapServer) parseDN(dnStr string) map[string][]string {
-	dnParts := strings.FieldsFunc(dnStr, func(r rune) bool {
-		return r == ','
-	})
-	res := map[string][]string{}
-	for i, part := range dnParts {
-		dnParts[i] = strings.TrimSpace(part)
-		pargs := strings.SplitN(part, "=", 2)
-		if len(pargs) != 2 {
-			continue
-		}
-		key, value := pargs[0], pargs[1]
-		res[key] = append(res[key], value)
-	}
-	return res
 }
 
 func writeErrorResponse(ctx context.Context, w ldap.ResponseWriter, ins ldapInstrumentor, response message.ProtocolOp, err error, errCode string, format string, v ...interface{}) {
@@ -402,4 +364,42 @@ func writeSuccessResponse(ctx context.Context, w ldap.ResponseWriter, ins ldapIn
 	w.Write(response)
 	ins("success", "")
 	log.Ctx(ctx).Debug().Msgf("request successful")
+}
+
+func parseSearchFilter(filter message.Filter) map[string]string {
+	condition := map[string]string{}
+	switch filter := filter.(type) {
+	case message.FilterAnd:
+		for _, f := range filter {
+			switch f := f.(type) {
+			case message.FilterEqualityMatch:
+				condition[string(f.AttributeDesc())] = string(f.AssertionValue())
+			case message.FilterOr:
+				for _, f := range f {
+					switch f := f.(type) {
+					case message.FilterEqualityMatch:
+						condition[string(f.AttributeDesc())] = string(f.AssertionValue())
+					}
+				}
+			}
+		}
+	}
+	return condition
+}
+
+func parseDN(dnStr string) map[string][]string {
+	dnParts := strings.FieldsFunc(dnStr, func(r rune) bool {
+		return r == ','
+	})
+	res := map[string][]string{}
+	for i, part := range dnParts {
+		dnParts[i] = strings.TrimSpace(part)
+		pargs := strings.SplitN(part, "=", 2)
+		if len(pargs) != 2 {
+			continue
+		}
+		key, value := pargs[0], pargs[1]
+		res[key] = append(res[key], value)
+	}
+	return res
 }

@@ -5,11 +5,12 @@
 ###############################################################
 
 jwt_secret: a_very_important_secret
-default_redirection_url: http://authelia.ldap-adapter-playground.localhost:4030
+default_redirection_url: http://auth.ldap-adapter-playground.localhost:4030
 
 server:
   host: 0.0.0.0
   port: 9091
+  asset_path: ./assets
 
 log:
   level: debug
@@ -31,8 +32,8 @@ authentication_backend:
     groups_filter: (&(member={dn})(objectClass=groupOfNames))
     # (&(uniqueMember={dn})(objectClass=groupOfUniqueNames))
     group_name_attribute: cn
-    mail_attribute: mail
-    display_name_attribute: displayName
+    mail_attribute: email
+    display_name_attribute: displayname
     # permit_referrals: false
     user: cn=admin,dc=example,dc=com
     password: adminpassword
@@ -49,7 +50,7 @@ session:
 
 #   cookies:
 #     - name: authelia_session
-#       domain: authelia.ldap-adapter-playground.localhost # Should match whatever your root protected domain is
+#       domain: auth.ldap-adapter-playground.localhost # Should match whatever your root protected domain is
 #       expiration: 3600 # 1 hour
 #       inactivity: 300 # 5 minutes
 

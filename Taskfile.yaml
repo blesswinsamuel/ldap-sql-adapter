@@ -27,7 +27,7 @@ tasks:
     dir: ./test/authelia
     cmds:
       - mkdir -p assets
-      - curl https://www.google.com/images/branding/googlelogo/2x/googlelogo_light_color_272x92dp.png -o assets/logo.png
+      - curl https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/2560px-Google_%22G%22_Logo.svg.png -o assets/logo.png
       - curl https://www.google.com/favicon.ico -o assets/favicon.ico
     status:
       - test -d "assets"

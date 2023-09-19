@@ -82,11 +82,11 @@ http:
           lastModified: true
           rewrites:
             - regex: "Authelia"
-              replacement: "Custom Authelia"
+              replacement: "Google"
             - regex: "Powered By"
               replacement: ""
             - regex: "https:\\/\\/www\\.authelia\\.com"
-              replacement: "https://custom-authelia.com"
+              replacement: "https://google.com"
             # - regex: "</head>"
             #   replacement: '<style>a[href="https://www.authelia.com"] {display: "none"}</style></head>'
           logLevel: -1

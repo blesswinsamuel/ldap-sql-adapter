@@ -1,0 +1,19 @@
+procs:
+  traefik:
+    shell: "task run-traefik"
+    stop: { send-keys: ["<C-c>"] }
+  authelia:
+    shell: "task run-authelia"
+    stop: SIGKILL
+    # stop: { send-keys: ["<C-c>"] }
+  ldap-sql-adapter:
+    shell: "task run-ldap-sql-adapter"
+    stop: { send-keys: ["<C-c>"] }
+  mailhog:
+    shell: "task run-mailhog"
+    stop: { send-keys: ["<C-c>"] }
+  postgres:
+    shell: "task run-postgres"
+    stop: { send-keys: ["<C-c>"] }
+
+mouse_scroll_speed: 1

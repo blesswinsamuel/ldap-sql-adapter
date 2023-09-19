@@ -1,0 +1,4 @@
+/pgdata
+/traefik/certs
+/traefik/plugins-storage
+/authelia/assets

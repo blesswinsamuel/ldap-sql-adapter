@@ -1,0 +1,154 @@
+version: "3"
+
+vars:
+  TRAEFIK_PORT: 4030
+  POSTGRES_PORT: 4031
+  AUTHELIA_PORT: 4032
+  LDAP_SQL_ADAPTER_PORT: 40389
+  LDAP_SQL_ADAPTER_HTTP_PORT: 4034
+  SMTP_PORT: 4025
+  MAILHOG_PORT: 4035
+
+tasks:
+  install-authelia:
+    # internal: true
+    dir: /tmp
+    cmds:
+      - defer: rm -rf /tmp/authelia
+      - git clone --branch v4.37.5 --depth 1 git@github.com:authelia/authelia.git
+      - cd authelia/web && pnpm install && pnpm build
+      - cd authelia && mkdir -p internal/server/public_html/api
+      - cd authelia && touch internal/server/public_html/{index.html,api/index.html,api/openapi.yml}
+      - cd authelia && go install github.com/authelia/authelia/v4/cmd/authelia
+    status:
+      - command -v authelia
+
+  create-authelia-assets:
+    dir: ./test/authelia
+    cmds:
+      - mkdir -p assets
+      - curl https://www.google.com/images/branding/googlelogo/2x/googlelogo_light_color_272x92dp.png -o assets/logo.png
+      - curl https://www.google.com/favicon.ico -o assets/favicon.ico
+    status:
+      - test -d "assets"
+
+  generate-certs:
+    dir: ./test/traefik
+    cmds:
+      # - mkcert -install
+      - mkdir -p certs
+      - mkcert -cert-file certs/local-cert.pem -key-file certs/local-key.pem "ldap-adapter-playground.localhost" "*.ldap-adapter-playground.localhost"
+    status:
+      - test -d "certs"
+
+  setup-postgres:
+    dir: ./test
+    cmds:
+      - initdb -D ./pgdata --auth=trust
+      - sed -i.bak 's/127\.0\.0\.1\/32/0.0.0.0\/0/g' ./pgdata/pg_hba.conf
+      - pg_ctl -D ./pgdata -o '-k $PWD/pgdata -p {{ .POSTGRES_PORT }}' start
+      - createuser postgres -h localhost -p {{ .POSTGRES_PORT }} --superuser || true
+      - createdb ldap-adapter-db -h localhost -p {{ .POSTGRES_PORT }} -U postgres || true
+      - psql -h localhost -p {{ .POSTGRES_PORT }} -U postgres -c "alter user postgres with encrypted password 'postgres';"
+      - psql -h localhost -p {{ .POSTGRES_PORT }} -U postgres -c 'grant all privileges on database "ldap-adapter-db" to postgres;'
+      - echo {{ .SQL_STATEMENTS | shellQuote }} | psql -h localhost -p {{ .POSTGRES_PORT }} -U postgres -d ldap-adapter-db
+      - pg_ctl -D ./pgdata stop
+    status:
+      - test -d "./pgdata"
+    vars:
+      PASSWORD_BCRYPTED:
+        sh: |
+          htpasswd -bnBC 10 "" password123 | tr -d ':\n'
+      SQL_STATEMENTS: |
+        CREATE TABLE users (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          username VARCHAR(50) NOT NULL,
+          email VARCHAR(100) NOT NULL,
+          password VARCHAR(100) NOT NULL,
+          groups TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+        ALTER TABLE users ADD CONSTRAINT unique_username UNIQUE (username);
+        ALTER TABLE users ADD CONSTRAINT unique_email UNIQUE (email);
+        INSERT INTO users (name, username, email, password, groups) VALUES ('John Doe', 'john_doe', 'john_doe@example.com', '{{ .PASSWORD_BCRYPTED }}', '{admin}');
+        CREATE SCHEMA authelia;
+
+  teardown-postgres:
+    dir: ./test
+    cmds:
+      - rm -rf ./pgdata
+
+  wait-for-service:
+    internal: true
+    cmds:
+      - |
+        while ! nc -z localhost {{ .PORT }}; do
+            echo "Waiting for port {{ .PORT }}..."
+            sleep 1 # wait for 1 second before check again
+        done
+
+  # Start
+  run:
+    cmds:
+      - mprocs
+    interactive: true
+
+  run-ldap-sql-adapter:
+    dir: .
+    cmds:
+      - go mod tidy
+      - air 2>&1 | pretty-json-log
+    env:
+      DATABASE_URL: "postgres://postgres:postgres@localhost:{{ .POSTGRES_PORT }}/ldap-adapter-db?sslmode=disable"
+      BASE_DN: "dc=example,dc=com"
+      BIND_USERNAME: admin
+      BIND_PASSWORD: adminpassword
+      LDAP_PORT: "{{ .LDAP_SQL_ADAPTER_PORT }}"
+      HTTP_PORT: "{{ .LDAP_SQL_ADAPTER_HTTP_PORT }}"
+      SQL_GET_USER_PASSWORD_BY_USERNAME_QUERY: |
+        SELECT password FROM users WHERE username = :uid
+      SQL_GET_USER_BY_USERNAME_OR_EMAIL_QUERY: |
+        SELECT username as uid, email, name as displayname FROM users WHERE username = :uid OR email = :email
+      SQL_GET_USER_GROUPS_QUERY: |
+        SELECT UNNEST(groups) AS name FROM users WHERE username = :uid
+      SQL_UPDATE_PASSWORD_QUERY: |
+        UPDATE users SET password = :password WHERE username = :uid
+
+  run-authelia:
+    dir: ./test/authelia
+    cmds:
+      - task: install-authelia
+      - task: create-authelia-assets
+      - task: wait-for-service
+        vars: { PORT: "{{ .POSTGRES_PORT }}" }
+      - task: wait-for-service
+        vars: { PORT: "{{ .SMTP_PORT }}" }
+      - authelia --config ./configuration.yml
+    env:
+      AUTHELIA_SERVER_PORT: "{{ .AUTHELIA_PORT }}"
+
+  run-traefik:
+    dir: ./test/traefik
+    cmds:
+      - task: generate-certs
+      # https://github.com/SchemaStore/schemastore/raw/master/src/schemas/json/traefik-v2.json
+      - yq e '.entrypoints.https.address = ":{{ .TRAEFIK_PORT }}"' ./traefik-static.yaml > /tmp/la-traefik-static.yaml
+      - traefik --configfile /tmp/la-traefik-static.yaml
+    env:
+      TRAEFIK_PORT: "{{ .TRAEFIK_PORT }}"
+      MAILHOG_PORT: "{{ .MAILHOG_PORT }}"
+      AUTHELIA_PORT: "{{ .AUTHELIA_PORT }}"
+
+  run-postgres:
+    dir: ./test
+    cmds:
+      - task: setup-postgres
+      - postgres -h '*' -p {{ .POSTGRES_PORT }} -D ./pgdata -k $PWD/pgdata
+
+  run-mailhog:
+    dir: /tmp
+    cmds:
+      - go install github.com/mailhog/MailHog@latest
+      - MailHog -api-bind-addr :{{ .MAILHOG_PORT }} -smtp-bind-addr :{{ .SMTP_PORT }} -ui-bind-addr :{{ .MAILHOG_PORT }}

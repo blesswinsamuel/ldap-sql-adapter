@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://github.com/SchemaStore/schemastore/raw/master/src/schemas/json/traefik-v2-file-provider.json
+http:
+  routers:
+    authelia:
+      rule: "Host(`auth.ldap-adapter-playground.localhost`)"
+      service: "authelia"
+      tls: {}
+      middlewares:
+        - authelia-body-rewrite
+        - authelia-headers
+        # - authelia-rewrite
+    traefik:
+      rule: Host(`traefik.ldap-adapter-playground.localhost`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+      service: api@internal
+      tls: {}
+      middlewares:
+        # - sso-auth
+        - authelia-auth
+    mailhog:
+      rule: "Host(`mailhog.ldap-adapter-playground.localhost`)"
+      service: mailhog
+      tls: {}
+
+  services:
+    authelia:
+      loadBalancer:
+        servers:
+          - url: 'http://localhost:{{ env "AUTHELIA_PORT" }}/'
+    mailhog:
+      loadBalancer:
+        servers:
+          - url: 'http://localhost:{{ env "MAILHOG_PORT" }}/'
+
+  middlewares:
+    # sso-auth:
+    #   forwardAuth:
+    #     address: 'http://localhost:{{ env "SSO_PORT" }}/api/verify?rd=https://sso.ldap-adapter-playground.localhost:{{ env "TRAEFIK_PORT" }}'
+    #     authResponseHeaders:
+    #       - Remote-User
+    #       - Remote-Name
+    #       - Remote-Email
+    #       - Remote-Groups
+    #       - Remote-Permissions
+    #     trustForwardHeader: true
+
+    # sso-headers:
+    #   headers:
+    #     browserXssFilter: true
+    #     customFrameOptionsValue: SAMEORIGIN
+    #     customResponseHeaders:
+    #       Cache-Control: no-store
+    #       Pragma: no-cache
+
+    authelia-auth: # TODO: check
+      forwardAuth:
+        address: 'http://localhost:{{ env "AUTHELIA_PORT" }}/api/verify?rd=https://auth.ldap-adapter-playground.localhost:{{ env "TRAEFIK_PORT" }}'
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Name
+          - Remote-Email
+          - Remote-Groups
+          # - Remote-Permissions
+        trustForwardHeader: true
+
+    authelia-headers: # TODO: check
+      headers:
+        browserXssFilter: true
+        customFrameOptionsValue: SAMEORIGIN
+        customResponseHeaders:
+          Cache-Control: no-store
+          Pragma: no-cache
+        # contentSecurityPolicy: style-src "sha256-7NVSQlhRd8OZ6VV1L9eL+/d0bO/IQkNufMlKppa3bkE="
+
+    # authelia-rewrite:
+    #   redirectRegex:
+    #     regex: ^https://.*/(favicon\.ico|logo\.png)$
+    #     replacement: https://assets.custom-site.com/$1
+
+    authelia-body-rewrite:
+      plugin:
+        rewriteBody:
+          lastModified: true
+          rewrites:
+            - regex: "Authelia"
+              replacement: "Custom Authelia"
+            - regex: "Powered By"
+              replacement: ""
+            - regex: "https:\\/\\/www\\.authelia\\.com"
+              replacement: "https://custom-authelia.com"
+            # - regex: "</head>"
+            #   replacement: '<style>a[href="https://www.authelia.com"] {display: "none"}</style></head>'
+          logLevel: -1
+
+    # authelia-body-rewrite-csp-header:
+    #   plugin:
+    #     rewriteHeaders:
+    #       header: "content-security-policy"
+    #       regex: "^(.+)$"
+    #       replacement: "$1; style-src 'sha256-7NVSQlhRd8OZ6VV1L9eL+/d0bO/IQkNufMlKppa3bkE='"
+
+    # was needed for old version of vite for websocket support, no longer needed
+    sslheader:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: https,wss
+
+tls:
+  certificates:
+    - certFile: "./certs/local-cert.pem"
+      keyFile: "./certs/local-key.pem"

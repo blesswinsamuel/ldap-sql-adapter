@@ -5,7 +5,7 @@
 ###############################################################
 
 jwt_secret: a_very_important_secret
-default_redirection_url: http://authelia.127.0.0.1.xip.io:9091
+default_redirection_url: http://authelia.ldap-adapter-playground.localhost:4030
 
 server:
   host: 0.0.0.0
@@ -15,16 +15,16 @@ log:
   level: debug
 
 totp:
-  issuer: authelia.127.0.0.1.xip.io
+  issuer: ldap-adapter-playground.localhost
 
 authentication_backend:
   # file:
   #   path: /config/users_database.yml
   ldap:
-    url: ldap://127.0.0.1:10389
+    url: ldap://127.0.0.1:40389
     base_dn: dc=example,dc=com
     username_attribute: uid
-    additional_users_dn: ou=users
+    additional_users_dn: ou=people
     # users_filter: (&(|({username_attribute}={input})({mail_attribute}={input}))(objectClass=person))
     users_filter: (&({username_attribute}={input})(objectClass=person))
     additional_groups_dn: ou=groups
@@ -35,25 +35,21 @@ authentication_backend:
     display_name_attribute: displayName
     # permit_referrals: false
     user: cn=admin,dc=example,dc=com
-    password: password
+    password: adminpassword
 
 access_control:
   default_policy: deny
   rules:
-    - domain: public.authelia.127.0.0.1.xip.io
-      policy: bypass
-    - domain: traefik.authelia.127.0.0.1.xip.io
+    - domain: traefik.ldap-adapter-playground.localhost
       policy: one_factor
-    - domain: secure.authelia.127.0.0.1.xip.io
-      policy: two_factor
 
 session:
   secret: unsecure_session_secret
-  domain: authelia.127.0.0.1.xip.io
+  domain: ldap-adapter-playground.localhost
 
 #   cookies:
 #     - name: authelia_session
-#       domain: authelia.127.0.0.1.xip.io # Should match whatever your root protected domain is
+#       domain: authelia.ldap-adapter-playground.localhost # Should match whatever your root protected domain is
 #       expiration: 3600 # 1 hour
 #       inactivity: 300 # 5 minutes
 
@@ -64,9 +60,24 @@ regulation:
 
 storage:
   encryption_key: you_must_generate_a_random_string_of_more_than_twenty_chars_and_configure_this
-  local:
-    path: /tmp/authelia-db.sqlite3
+  # local:
+  #   path: /tmp/authelia-db.sqlite3
+  postgres:
+    host: 127.0.0.1
+    port: 4031
+    database: ldap-adapter-db
+    schema: authelia
+    username: postgres
+    # Password can also be set using a secret: https://www.authelia.com/c/secrets
+    password: postgres
+    timeout: 5s
 
 notifier:
-  filesystem:
-    filename: /tmp/authelia-notification.txt
+  # filesystem:
+  #   filename: /tmp/authelia-notification.txt
+  smtp:
+    host: 127.0.0.1
+    port: 4025
+    sender: "LDAP Adapter <admin@ldap-adapter-playground.localhost>"
+    subject: "[LDAP Adapter] {title}"
+    disable_require_tls: true

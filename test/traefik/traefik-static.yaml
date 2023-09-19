@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://github.com/SchemaStore/schemastore/raw/master/src/schemas/json/traefik-v2.json
+entryPoints:
+  # http:
+  #   address: ":8082"
+  #   http:
+  #     redirections:
+  #       entryPoint:
+  #         to: https
+  #         scheme: https
+  https:
+    forwardedHeaders:
+      trustedIPs:
+        - "127.0.0.1/32" # localhost
+    http:
+      tls:
+        certResolver: "default"
+        domains:
+          - main: ldap-adapter-playground.localhost
+            sans:
+              - "*.ldap-adapter-playground.localhost"
+  #   # address: ":443"
+  traefik:
+    address: ":4043"
+
+providers:
+  file:
+    filename: ./traefik-dynamic.yaml
+    watch: true
+
+log:
+  level: INFO
+
+api:
+  dashboard: true
+  # insecure: true
+
+experimental:
+  plugins:
+    rewriteBody:
+      # moduleName: github.com/packruler/rewrite-body
+      # version: v1.1.0
+      moduleName: github.com/traefik/plugin-rewritebody
+      version: v0.3.1
+    # rewriteHeaders:
+    #   moduleName: "github.com/vincentinttsh/rewriteheaders"
+    #   version: "v1.0.0"
